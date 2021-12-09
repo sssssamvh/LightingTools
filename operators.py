@@ -21,7 +21,7 @@ class LIGHTING_OT_create_light(bpy.types.Operator):
     bl_label = 'Create Lights'
     bl_options = {'REGISTER', 'UNDO'}
 
-    name: bpy.props.StringProperty(name='Name', default='Light')
+    name: bpy.props.StringProperty(name='Name', default='light')
     amount: bpy.props.IntProperty(name='Amount', default=1)
     light_type: bpy.props.EnumProperty(name='Type', items=[
         ('POINT', 'Point', 'sdfbdsfb', 'LIGHT_POINT', 0),
@@ -34,13 +34,15 @@ class LIGHTING_OT_create_light(bpy.types.Operator):
             'LIGHT_DATA', 0),
         ('vol', 'Volumetric', 'Volumetric light', 'VOLUME_DATA', 1),
     ])
-    with_target: bpy.props.BoolProperty(name='With Aim', default=False)
+    with_aim: bpy.props.BoolProperty(name='With Aim', default=False)
 
     def draw(self, context):
         lay = self.layout
         lay.use_property_split = True
         lay.prop(self, 'name')
         lay.prop(self, 'amount')
+        if self.light_type != 'POINT':
+            lay.prop(self, 'with_aim')
         lay.separator()
         lay.use_property_split = False
         lay.row().prop(self, 'light_type', expand=True)
@@ -63,11 +65,20 @@ class LIGHTING_OT_create_light(bpy.types.Operator):
             # Create the light.
             light = bpy.data.lights.new(name=name, type=self.light_type)
             ob = bpy.data.objects.new(name=name, object_data=light)
+            ob.location[2] = 1.0
             context.scene.collection.objects.link(ob)
             # Set ray type visibility based on the purpose.
             for ray_type in ray_types:
                 setattr(ob, f'visible_{ray_type}', not is_volumetric)
             ob.visible_volume_scatter = is_volumetric
+            # If With Aim has been enabled, create the aim and constraint
+            if self.with_aim and self.light_type != 'POINT':
+                aim = bpy.data.objects.new(name=f'{self.name}Aim.LOC.001',
+                    object_data=None)
+                context.scene.collection.objects.link(aim)
+                constraint = ob.constraints.new(type='DAMPED_TRACK')
+                constraint.target = aim
+                constraint.track_axis = 'TRACK_NEGATIVE_Z'
             # Select the newly created light, and make it the active object.
             context.view_layer.objects.active = ob
             ob.select_set(True)
